@@ -1,18 +1,10 @@
 # This is a sample Python script.
 from dotenv import load_dotenv
-import time
 import os
 import requests
-from requests.exceptions import HTTPError, ConnectionError, Timeout, RequestException
-
-# all Solo ops have the DestinyActivityDefinition { "activityhash" : { "activityTypeHash" : 3851289711 } }
-# Pinnacle ops 1227821118
-# Fireteam ops: 556925641
-# matchmade fireteam ops: 1996806804
 
 # seems to be both 'daily_grind_chance' and 'daily_grind_guaranteed'
-
-# 3956025454 is the "bonus engrams"
+# 3956025454 is the "bonus engrams" item hash
 
 load_dotenv()
 API_KEY = os.getenv("BUNGIE_API_KEY")
@@ -24,6 +16,7 @@ BASE = "https://www.bungie.net"
 MANIFEST_URL = "/Platform/Destiny2/Manifest/"
 PROFILE_URL = f"/Platform/Destiny2/{MEMBERSHIP_TYPE}/Profile/{MEMBERSHIP_ID}/"
 
+"""
 SOLO_OPS_ACTIVITY_TYPE_HASH = 3851289711
 FIRETEAM_OPS_ACTIVITY_TYPE_HASH = 556925641
 FIRETEAM_OPS_MATCHMADE_ACTIVITY_TYPE_HASH = 1996806804
@@ -31,9 +24,7 @@ FIRETEAM_OPS_ONSLAUGHT_ACTIVITY_TYPE_HASH = 2897687202
 FIRETEAM_OPS_CRAWL_ACTIVITY_TYPE_HASH = 2442898492
 PINNACLE_OPS_ACTIVITY_TYPE_HASH = 1227821118
 CRUCIBLE_OPS_ACTIVITY_TYPE_HASH = 4107873900
-
-#params = {"components": "204"}
-
+"""
 
 def request_manifest(args):
     request_url = ""
@@ -65,7 +56,7 @@ def request_item_hashes(manifest, args):
 
     return item_hashes
 
-
+"""
 def get_ops_activities(activity_hashes):
     solo_ops_activities = []
     fireteam_ops_activities = []
@@ -93,7 +84,7 @@ def get_ops_activities(activity_hashes):
                 print(f"Pinnacle Ops: {pinnacle_ops_activities}")
 
     return solo_ops_activities, fireteam_ops_activities, pinnacle_ops_activities
-
+"""
 
 def get_profile_activities():
     params = {
@@ -127,6 +118,7 @@ def get_activity_names(activities, activity_item_hashes):
             activity_names.append(name)
     return activity_names
 
+
 def get_item_names(items, activity_item_hashes):
     item_names = []
     for activity_item_hash in activity_item_hashes:
@@ -150,7 +142,6 @@ def main():
 
     print(f"Activity names: {activity_names}")
     print(f"Item names: {item_names}")
-
 
 
 if __name__ == '__main__':
