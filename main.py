@@ -4,7 +4,6 @@ import os
 import requests
 import discord
 from discord.ext import commands
-import asyncio
 
 # seems to be both 'daily_grind_chance' and 'daily_grind_guaranteed'
 # 3956025454 is the "bonus engrams" item hash
@@ -124,16 +123,16 @@ def get_item_names(items, activity_item_hashes):
     item_names = []
     for activity_item_hash in activity_item_hashes:
         name = items[str(activity_item_hash["item"])]["displayProperties"]["name"]
+        if items[str(activity_item_hash["item"])]["equippingBlock"]["ammoType"] == 0:       # is armor?
+            words = name.split()
+            if words:
+                item_type = items[str(activity_item_hash["item"])]["itemTypeDisplayName"]
+                if item_type in CLASS_ITEMS:
+                    words[-1] = "Class Item"
+                else:
+                    words[-1] = item_type
+                name = ' '.join(words)
         if name not in item_names:
-            if items[str(activity_item_hash["item"])]["equippingBlock"]["ammoType"] == 0:       # is armor?
-                words = name.split()
-                if words:
-                    item_type = items[str(activity_item_hash["item"])]["itemTypeDisplayName"]
-                    if item_type in CLASS_ITEMS:
-                        words[-1] = "Class Item"
-                    else:
-                        words[-1] = item_type
-                    name = ' '.join(words)
             item_names.append(name)
 
     return item_names
@@ -188,33 +187,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-"""
-# --- POST ONCE ---
-async def main():
-    # Use discord.Client instead of commands.Bot for simplicity
-
-    bungie_data = create_item_activity_dictionary()
-    intents = discord.Intents.default()
-
-    async with discord.Client(intents=intents) as client:   # <---
-        @client.event
-        async def on_ready():
-            print(f"✅ Bot logged in as {client.user}")
-            for channel_id in DISCORD_CHANNEL_IDS:
-                channel = client.get_channel(channel_id)
-                if channel:
-                    await channel.send("Here’s today’s Bonus Focus rewards:\n" + format_bungie_data(bungie_data))
-                    print(f"✅ Posted in {channel.name} (ID: {channel.id})")
-                else:
-                    print(f"⚠️ Could not find channel with ID {channel_id}")
-            await client.close()
-
-        await client.start(DISCORD_BOT_TOKEN)
-
-if __name__ == '__main__':
-    asyncio.run(main())
-"""
 
 
 
