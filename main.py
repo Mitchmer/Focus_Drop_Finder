@@ -114,7 +114,7 @@ def get_activity_names(activities, activity_item_hashes):
                 if activities[str(activity_item_hash["activity"])]["matchmaking"]["maxParty"] == 1:
                     name = "Quickplay (Solo Ops)"
                 else:
-                    name += "Quickplay (Fireteam Ops)"
+                    name = "Quickplay (Fireteam Ops)"
             activity_names.append(name)
     return activity_names
 
