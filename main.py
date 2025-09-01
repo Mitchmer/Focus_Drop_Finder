@@ -112,9 +112,9 @@ def get_activity_names(activities, activity_item_hashes):
         if "Quickplay" in name or name not in activity_names:
             if "Quickplay" in name:
                 if activities[str(activity_item_hash["activity"])]["matchmaking"]["maxParty"] == 1:
-                    name += " (Solo Ops)"
+                    name = "Quickplay (Solo Ops)"
                 else:
-                    name += " (Fireteam Ops)"
+                    name += "Quickplay (Fireteam Ops)"
             activity_names.append(name)
     return activity_names
 
