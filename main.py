@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import os
 import requests
 import discord
+from discord.ext import commands
 import asyncio
 
 # seems to be both 'daily_grind_chance' and 'daily_grind_guaranteed'
@@ -24,23 +25,26 @@ BASE = "https://www.bungie.net"
 MANIFEST_URL = "/Platform/Destiny2/Manifest/"
 PROFILE_URL = f"/Platform/Destiny2/{MEMBERSHIP_TYPE}/Profile/{MEMBERSHIP_ID}/"
 
+CLASS_ITEMS = ["Titan Mark", "Hunter Cloak", "Warlock Bond"]
 
-"""
-SOLO_OPS_ACTIVITY_TYPE_HASH = 3851289711
-FIRETEAM_OPS_ACTIVITY_TYPE_HASH = 556925641
-FIRETEAM_OPS_MATCHMADE_ACTIVITY_TYPE_HASH = 1996806804
-FIRETEAM_OPS_ONSLAUGHT_ACTIVITY_TYPE_HASH = 2897687202
-FIRETEAM_OPS_CRAWL_ACTIVITY_TYPE_HASH = 2442898492
-PINNACLE_OPS_ACTIVITY_TYPE_HASH = 1227821118
-CRUCIBLE_OPS_ACTIVITY_TYPE_HASH = 4107873900
-"""
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix="!", intents=intents)
+
 
 def request_manifest(args):
     request_url = ""
     for arg in args:
         request_url += arg
+    try:
+        response = requests.get(request_url, headers=REQUEST_HEADERS, timeout=10)
+        response.raise_for_status()
+        response_data = response.json()
+    except requests.exceptions.Timeout:
+        return "⏳ Bungie API timed out requesting manifest. Try again later."
+    except requests.exceptions.RequestException as e:
+        return f"⚠️ API error during manifest request: {e}"
 
-    response_data = requests.get(request_url, headers=REQUEST_HEADERS).json()
     return response_data
 
 
@@ -50,8 +54,14 @@ def request_activity_hashes(manifest, args):
         request_url += arg
 
     request_url += manifest["Response"]["jsonWorldComponentContentPaths"]["en"]["DestinyActivityDefinition"]
-    activity_hashes = requests.get(request_url, headers=REQUEST_HEADERS).json()
-
+    try:
+        response = requests.get(request_url, headers=REQUEST_HEADERS, timeout=10)
+        response.raise_for_status()
+        activity_hashes = response.json()
+    except requests.exceptions.Timeout:
+        return "⏳ Bungie API timed out during activity hash request. Try again later."
+    except requests.exceptions.RequestException as e:
+        return f"⚠️ API error during activity hash request: {e}"
     return activity_hashes
 
 
@@ -61,39 +71,16 @@ def request_item_hashes(manifest, args):
         request_url += arg
 
     request_url += manifest["Response"]["jsonWorldComponentContentPaths"]["en"]["DestinyInventoryItemDefinition"]
-    item_hashes = requests.get(request_url, headers=REQUEST_HEADERS).json()
-
+    try:
+        response = requests.get(request_url, headers=REQUEST_HEADERS)
+        response.raise_for_status()
+        item_hashes = response.json()
+    except requests.exceptions.Timeout:
+        return "⏳ Bungie API timed out during item hash request. Try again later."
+    except requests.exceptions.RequestException as e:
+        return f"⚠️ API error during item hash request: {e}"
     return item_hashes
 
-"""
-def get_ops_activities(activity_hashes):
-    solo_ops_activities = []
-    fireteam_ops_activities = []
-    pinnacle_ops_activities = []
-
-    for activity_hash, definition in activity_hashes.items():
-        #print(definition["activityTypeHash"])
-        activity_type_hash = definition["activityTypeHash"]
-        name = definition["originalDisplayProperties"]["name"]
-
-        if activity_type_hash == SOLO_OPS_ACTIVITY_TYPE_HASH:
-            exists = any(name in activity.values() for activity in solo_ops_activities)
-            if not exists:
-                solo_ops_activities.append(dict(activityHash=activity_hash, name=name))
-                print(f"Solo Ops: {solo_ops_activities}")
-        elif activity_type_hash == FIRETEAM_OPS_ACTIVITY_TYPE_HASH or activity_type_hash == FIRETEAM_OPS_MATCHMADE_ACTIVITY_TYPE_HASH or activity_type_hash == FIRETEAM_OPS_ONSLAUGHT_ACTIVITY_TYPE_HASH or activity_type_hash == FIRETEAM_OPS_CRAWL_ACTIVITY_TYPE_HASH:
-            exists = any(name in activity.values() for activity in fireteam_ops_activities)
-            if not exists and "Conquest" not in name:
-                fireteam_ops_activities.append(dict(activityHash=activity_hash, name=name))
-                print(f"Fireteam Ops: {fireteam_ops_activities}")
-        elif activity_type_hash == PINNACLE_OPS_ACTIVITY_TYPE_HASH:
-            exists = any(name in activity.values() for activity in pinnacle_ops_activities)
-            if not exists and "Conquest" not in name:
-                pinnacle_ops_activities.append(dict(activityHash=activity_hash, name=name))
-                print(f"Pinnacle Ops: {pinnacle_ops_activities}")
-
-    return solo_ops_activities, fireteam_ops_activities, pinnacle_ops_activities
-"""
 
 def get_profile_activities():
     params = {
@@ -138,6 +125,15 @@ def get_item_names(items, activity_item_hashes):
     for activity_item_hash in activity_item_hashes:
         name = items[str(activity_item_hash["item"])]["displayProperties"]["name"]
         if name not in item_names:
+            if items[str(activity_item_hash["item"])]["equippingBlock"]["ammoType"] == 0:       # is armor?
+                words = name.split()
+                if words:
+                    item_type = items[str(activity_item_hash["item"])]["itemTypeDisplayName"]
+                    if item_type in CLASS_ITEMS:
+                        words[-1] = "Class Item"
+                    else:
+                        words[-1] = item_type
+                    name = ' '.join(words)
             item_names.append(name)
 
     return item_names
@@ -164,14 +160,36 @@ def create_item_activity_dictionary():
     return bungie_data
 
 
-def format_bungie_data(bungie_data):
+def format_bungie_data():
     """Format your list of dictionaries into a message string."""
+    bungie_data = create_item_activity_dictionary()
     lines = []
     for entry in bungie_data:
         lines.append(f"**{entry['activity']}** → {entry['item']}")
     return "\n".join(lines)
 
 
+# --- EVENTS ---
+@bot.event
+async def on_ready():
+    print(f"✅ Bot logged in as {bot.user}")
+
+# --- COMMANDS ---
+@bot.command(name="focus")
+async def focus(ctx):
+    """Run Bungie fetch and reply with data."""
+    await ctx.send("Fetching latest Bungie data...")
+    message = format_bungie_data()
+    await ctx.send(message)
+
+# --- MAIN ENTRYPOINT ---
+def main():
+    bot.run(DISCORD_BOT_TOKEN)
+
+if __name__ == "__main__":
+    main()
+
+"""
 # --- POST ONCE ---
 async def main():
     # Use discord.Client instead of commands.Bot for simplicity
@@ -196,7 +214,7 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
-
+"""
 
 
 
