@@ -1,5 +1,5 @@
 .idea/
 .env
 .venv/
-*.txt
 *.json
+characterjson.txt
