@@ -4,6 +4,8 @@ import os
 import requests
 import discord
 from discord.ext import commands
+import json
+import gc
 
 # seems to be both 'daily_grind_chance' and 'daily_grind_guaranteed'
 # 3956025454 is the "bonus engrams" item hash
@@ -24,6 +26,11 @@ BASE = "https://www.bungie.net"
 MANIFEST_URL = "/Platform/Destiny2/Manifest/"
 PROFILE_URL = f"/Platform/Destiny2/{MEMBERSHIP_TYPE}/Profile/{MEMBERSHIP_ID}/"
 
+# JSON Paths
+MANIFEST_FILENAME = "Manifest.json"
+ACTIVITY_DEFINITION_FILENAME = "DestinyActivityDefinition.json"
+INVENTORY_ITEM_LITE_DEFINITION_FILENAME = "DestinyInventoryItemLiteDefinition.json"
+
 CLASS_ITEMS = ["Titan Mark", "Hunter Cloak", "Warlock Bond"]
 
 intents = discord.Intents.default()
@@ -32,19 +39,56 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 
 def request_manifest(args):
+    """
+    Requests the Bungie API manifest
+    :param args: can be a list of arguments, all that matters is that
+        when concatenated they form a complete API request for the
+        manifest.
+    :return: returns a JSON object for query.
+    """
+    #local_manifest = None
+    #remote_manifest = None
+    up_to_date = True
+
     request_url = ""
     for arg in args:
         request_url += arg
     try:
         response = requests.get(request_url, headers=REQUEST_HEADERS, timeout=10)
         response.raise_for_status()
-        response_data = response.json()
-    except requests.exceptions.Timeout:
-        return "⏳ Bungie API timed out requesting manifest. Try again later."
-    except requests.exceptions.RequestException as e:
-        return f"⚠️ API error during manifest request: {e}"
+        remote_manifest = response.json()
 
-    return response_data
+        if os.path.exists(MANIFEST_FILENAME):
+            with open(MANIFEST_FILENAME, "r") as f:
+                local_manifest = json.load(f)
+        else:
+            local_manifest = remote_manifest
+
+        # this checks the need to update the manifest
+        if local_manifest.get("Response", {}).get("version") != remote_manifest.get("Response", {}).get("version"):
+            print(f"Local manifest version diff from remote. Updating manifest")
+            print(f"Local version: {local_manifest.get("Response", {}).get("version")}")
+            print(f"Remote version: {remote_manifest.get("Response", {}).get("version")}")
+            with open(MANIFEST_FILENAME, "w") as f:
+                # noinspection PyTypeChecker
+                json.dump(remote_manifest, f)
+            local_manifest = remote_manifest
+            up_to_date = False
+
+    except requests.exceptions.Timeout:
+        raise RuntimeError("⏳ Bungie API timed out while fetching manifest metadata.")
+    except requests.exceptions.HTTPError as e:
+        raise RuntimeError(f"❌ Bungie API returned HTTP error: {e}")
+    except requests.exceptions.RequestException as e:
+        raise RuntimeError(f"⚠️ Network error while fetching manifest metadata: {e}")
+    except (json.JSONDecodeError, KeyError) as e:
+        raise RuntimeError(f"⚠️ Could not parse manifest metadata: {e}")
+
+    del response
+    del remote_manifest
+    gc.collect()
+
+    return local_manifest, up_to_date
 
 
 def request_activity_hashes(manifest, args):
@@ -58,9 +102,13 @@ def request_activity_hashes(manifest, args):
         response.raise_for_status()
         activity_hashes = response.json()
     except requests.exceptions.Timeout:
-        return "⏳ Bungie API timed out during activity hash request. Try again later."
+        raise RuntimeError("⏳ Bungie API timed out while fetching activity metadata.")
+    except requests.exceptions.HTTPError as e:
+        raise RuntimeError(f"❌ Bungie API returned HTTP error: {e}")
     except requests.exceptions.RequestException as e:
-        return f"⚠️ API error during activity hash request: {e}"
+        raise RuntimeError(f"⚠️ Network error while fetching activity metadata: {e}")
+    except (json.JSONDecodeError, KeyError) as e:
+        raise RuntimeError(f"⚠️ Could not parse activity metadata: {e}")
     return activity_hashes
 
 
@@ -75,9 +123,13 @@ def request_item_hashes(manifest, args):
         response.raise_for_status()
         item_hashes = response.json()
     except requests.exceptions.Timeout:
-        return "⏳ Bungie API timed out during item hash request. Try again later."
+        raise RuntimeError("⏳ Bungie API timed out while fetching item metadata.")
+    except requests.exceptions.HTTPError as e:
+        raise RuntimeError(f"❌ Bungie API returned HTTP error: {e}")
     except requests.exceptions.RequestException as e:
-        return f"⚠️ API error during item hash request: {e}"
+        raise RuntimeError(f"⚠️ Network error while fetching item metadata: {e}")
+    except (json.JSONDecodeError, KeyError) as e:
+        raise RuntimeError(f"⚠️ Could not parse item metadata: {e}")
     return item_hashes
 
 
@@ -85,23 +137,32 @@ def get_profile_activities():
     params = {
         "components": 204  # CharacterActivities
     }
-    response = requests.get(BASE+PROFILE_URL, headers=REQUEST_HEADERS, params=params)
+    try:
+        response = requests.get(BASE+PROFILE_URL, headers=REQUEST_HEADERS, params=params)
 
-    activities = []
-    if response.status_code == 200:
-        data = response.json()["Response"]
-        character_data = data["characterActivities"]["data"]
-        next_key = next(iter(character_data))
-        character_activities = character_data[next_key]["availableActivities"]
-        for activity in character_activities:
-            for visible_reward in activity["visibleRewards"]:
-                for reward_item in visible_reward["rewardItems"]:
-                    if reward_item["uiStyle"] == "daily_grind_chance" or reward_item["uiStyle"] == "daily_grind_guaranteed":
-                        item_hash = reward_item["itemQuantity"]["itemHash"]
-                        activity_hash = activity["activityHash"]
-                        activities.append(dict(activity=activity_hash, item=item_hash))
-    else:
-        print("Error:", response.status_code, response.text)
+        activities = []
+        if response.status_code == 200:
+            data = response.json()["Response"]
+            character_data = data["characterActivities"]["data"]
+            next_key = next(iter(character_data))
+            character_activities = character_data[next_key]["availableActivities"]
+            for activity in character_activities:
+                for visible_reward in activity["visibleRewards"]:
+                    for reward_item in visible_reward["rewardItems"]:
+                        if reward_item["uiStyle"] == "daily_grind_chance" or reward_item["uiStyle"] == "daily_grind_guaranteed":
+                            item_hash = reward_item["itemQuantity"]["itemHash"]
+                            activity_hash = activity["activityHash"]
+                            activities.append(dict(activity=activity_hash, item=item_hash))
+        else:
+            print("Error:", response.status_code, response.text)
+    except requests.exceptions.Timeout:
+        raise RuntimeError("⏳ Bungie API timed out while fetching profile metadata.")
+    except requests.exceptions.HTTPError as e:
+        raise RuntimeError(f"❌ Bungie API returned HTTP error: {e}")
+    except requests.exceptions.RequestException as e:
+        raise RuntimeError(f"⚠️ Network error while fetching profile metadata: {e}")
+    except (json.JSONDecodeError, KeyError) as e:
+        raise RuntimeError(f"⚠️ Could not parse profile metadata: {e}")
 
     return activities
 
@@ -138,16 +199,12 @@ def get_item_names(items, activity_item_hashes):
     return item_names
 
 
-def create_item_activity_dictionary():
-    manifest = request_manifest([BASE, MANIFEST_URL])
-    activities = request_activity_hashes(manifest, BASE)
-    items = request_item_hashes(manifest, BASE)
+def create_item_activity_dictionary(activities, items):
 
-    #solo_ops_activities, fireteam_ops_activities, pinnacle_ops_activities = get_ops_activities(activity_hashes)
-    activity_item_hashes = get_profile_activities()
+    profile_activity_item_hashes = get_profile_activities()
 
-    activity_names = get_activity_names(activities, activity_item_hashes)
-    item_names = get_item_names(items, activity_item_hashes)
+    activity_names = get_activity_names(activities, profile_activity_item_hashes)
+    item_names = get_item_names(items, profile_activity_item_hashes)
 
     print(f"Activity names: {activity_names}")
     print(f"Item names: {item_names}")
@@ -159,9 +216,9 @@ def create_item_activity_dictionary():
     return bungie_data
 
 
-def format_bungie_data():
+def format_bungie_data(activity_hashes, item_hashes):
     """Format your list of dictionaries into a message string."""
-    bungie_data = create_item_activity_dictionary()
+    bungie_data = create_item_activity_dictionary(activity_hashes, item_hashes)
     lines = []
     for entry in bungie_data:
         lines.append(f"**{entry['activity']}** → {entry['item']}")
@@ -178,8 +235,62 @@ async def on_ready():
 async def focus(ctx):
     """Run Bungie fetch and reply with data."""
     await ctx.send("Fetching latest Bungie data...")
-    message = format_bungie_data()
-    await ctx.send(message)
+
+    try:
+        #activity_hashes = None
+        #item_hashes = None
+        manifest, up_to_date = request_manifest([BASE, MANIFEST_URL])
+
+        # if data is up to date
+        if up_to_date:
+
+            # check if activity JSON exists
+            if os.path.exists(ACTIVITY_DEFINITION_FILENAME):
+                with open(ACTIVITY_DEFINITION_FILENAME, "r") as f:
+                    activity_hashes = json.load(f)
+                    print("Activity hashes loaded from local storage")
+            else:
+                activity_hashes = request_activity_hashes(manifest, BASE)
+                with open(ACTIVITY_DEFINITION_FILENAME, "w") as f:
+                    json.dump(activity_hashes, f)
+                    print("Activity hash file not found. Activity hashes loaded from API")
+
+            # check if item JSON exists
+            if os.path.exists(INVENTORY_ITEM_LITE_DEFINITION_FILENAME):
+                with open(INVENTORY_ITEM_LITE_DEFINITION_FILENAME, "r") as f:
+                    item_hashes = json.load(f)
+                    print("Item hashes loaded from local storage")
+            else:
+                item_hashes = request_item_hashes(manifest, BASE)
+                with open(INVENTORY_ITEM_LITE_DEFINITION_FILENAME, "w") as f:
+                    json.dump(item_hashes, f)
+                    print("Item hash file not found. Item hashes loaded from API")
+
+            # if everything exists, item and activity hashes were loaded from local memory
+
+        else:
+            activity_hashes = request_activity_hashes(manifest, BASE)
+            with open(ACTIVITY_DEFINITION_FILENAME, "w") as f:
+                json.dump(activity_hashes, f)
+
+            item_hashes = request_item_hashes(manifest, BASE)
+            with open(INVENTORY_ITEM_LITE_DEFINITION_FILENAME, "w") as f:
+                json.dump(item_hashes, f)
+
+            print("Activity and Item hashes loaded from up-to-date API manifest")
+
+        # activity and item hashes exist in memory now
+
+        message = format_bungie_data(activity_hashes, item_hashes)
+        await ctx.send(message)
+
+        del activity_hashes
+        del item_hashes
+        del manifest
+        gc.collect()
+
+    except RuntimeError as e:
+        await ctx.send(str(e))
 
 # --- MAIN ENTRYPOINT ---
 def main():
