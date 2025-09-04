@@ -61,7 +61,12 @@ def request_manifest(args):
         if os.path.exists(MANIFEST_FILENAME):
             with open(MANIFEST_FILENAME, "r") as f:
                 local_manifest = json.load(f)
+                print("Manifest loaded from local storage")
         else:
+            print("Local manifest not found. Saving API manifest")
+            with open(MANIFEST_FILENAME, "w") as f:
+                # noinspection PyTypeChecker
+                json.dump(remote_manifest, f)
             local_manifest = remote_manifest
 
         # this checks the need to update the manifest
