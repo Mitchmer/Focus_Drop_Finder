@@ -31,10 +31,10 @@ MANIFEST_FILENAME = "Manifest.json"
 ACTIVITY_DEFINITION_FILENAME = "DestinyActivityDefinition.json"
 INVENTORY_ITEM_LITE_DEFINITION_FILENAME = "DestinyInventoryItemLiteDefinition.json"
 
-# BREAKABLE THINGS - THESE WILL BE IGNORED IN THE RETURN MESSAGE
-BREAKABLE_ITEMS = [
-    "Festival of the Lost Bonus Drop"
-]
+# BREAKABLE THINGS - THESE ARE ITEMS TO BE USED FOR OMISSION
+BREAKABLE_ITEMS = {
+    "Festival of the Lost Bonus Drop" : 1077454211  # breaks program by being interpreted as a "Focus Drop"
+}
 
 CLASS_ITEMS = ["Titan Mark", "Hunter Cloak", "Warlock Bond"]
 
@@ -161,8 +161,9 @@ def get_profile_activities():
                     for reward_item in visible_reward["rewardItems"]:
                         if reward_item["uiStyle"] == "daily_grind_chance" or reward_item["uiStyle"] == "daily_grind_guaranteed":
                             item_hash = reward_item["itemQuantity"]["itemHash"]
-                            activity_hash = activity["activityHash"]
-                            activities.append(dict(activity=activity_hash, item=item_hash))
+                            if item_hash not in BREAKABLE_ITEMS.values(): # checks if the item should be skipped or not
+                                activity_hash = activity["activityHash"]
+                                activities.append(dict(activity=activity_hash, item=item_hash))
         else:
             print("Error:", response.status_code, response.text)
     except requests.exceptions.Timeout:
@@ -205,9 +206,8 @@ def get_item_names(items, activity_item_hashes):
                     else:
                         words[-1] = item_type
                     name = ' '.join(words)
-#        if name not in item_names:
-#            item_names.append(name)
-        item_names.append(name)
+        if name not in item_names:
+            item_names.append(name)
     return item_names
 
 
@@ -233,8 +233,7 @@ def format_bungie_data(activity_hashes, item_hashes):
     bungie_data = create_item_activity_dictionary(activity_hashes, item_hashes)
     lines = []
     for entry in bungie_data:
-        if entry.get('item') not in BREAKABLE_ITEMS:
-            lines.append(f"**{entry['activity']}** → {entry['item']}")
+        lines.append(f"**{entry['activity']}** → {entry['item']}")
     return "\n".join(lines)
 
 
