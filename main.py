@@ -31,6 +31,11 @@ MANIFEST_FILENAME = "Manifest.json"
 ACTIVITY_DEFINITION_FILENAME = "DestinyActivityDefinition.json"
 INVENTORY_ITEM_LITE_DEFINITION_FILENAME = "DestinyInventoryItemLiteDefinition.json"
 
+# BREAKABLE THINGS - THESE WILL BE IGNORED IN THE RETURN MESSAGE
+BREAKABLE_ITEMS = [
+    "Festival of the Lost Bonus Drop"
+]
+
 CLASS_ITEMS = ["Titan Mark", "Hunter Cloak", "Warlock Bond"]
 
 intents = discord.Intents.default()
@@ -189,18 +194,20 @@ def get_item_names(items, activity_item_hashes):
     item_names = []
     for activity_item_hash in activity_item_hashes:
         name = items[str(activity_item_hash["item"])]["displayProperties"]["name"]
-        if items[str(activity_item_hash["item"])]["equippingBlock"]["ammoType"] == 0:       # is armor?
-            words = name.split()
-            if words:
-                item_type = items[str(activity_item_hash["item"])]["itemTypeDisplayName"]
-                if item_type in CLASS_ITEMS:
-                    words[-1] = "Class Item"
-                else:
-                    words[-1] = item_type
-                name = ' '.join(words)
-        if name not in item_names:
-            item_names.append(name)
-
+        block = items[str(activity_item_hash["item"])].get("equippingBlock")
+        if block is not None:
+            if block["ammoType"] == 0:       # is armor?
+                words = name.split()
+                if words:
+                    item_type = items[str(activity_item_hash["item"])]["itemTypeDisplayName"]
+                    if item_type in CLASS_ITEMS:
+                        words[-1] = "Class Item"
+                    else:
+                        words[-1] = item_type
+                    name = ' '.join(words)
+#        if name not in item_names:
+#            item_names.append(name)
+        item_names.append(name)
     return item_names
 
 
@@ -226,7 +233,8 @@ def format_bungie_data(activity_hashes, item_hashes):
     bungie_data = create_item_activity_dictionary(activity_hashes, item_hashes)
     lines = []
     for entry in bungie_data:
-        lines.append(f"**{entry['activity']}** → {entry['item']}")
+        if entry.get('item') not in BREAKABLE_ITEMS:
+            lines.append(f"**{entry['activity']}** → {entry['item']}")
     return "\n".join(lines)
 
 
