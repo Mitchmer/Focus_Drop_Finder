@@ -32,8 +32,9 @@ ACTIVITY_DEFINITION_FILENAME = "DestinyActivityDefinition.json"
 INVENTORY_ITEM_LITE_DEFINITION_FILENAME = "DestinyInventoryItemLiteDefinition.json"
 
 # BREAKABLE THINGS - THESE ARE ITEMS TO BE USED FOR OMISSION
-BREAKABLE_ITEMS = {
-    "Festival of the Lost Bonus Drop" : 1077454211  # breaks program by being interpreted as a "Focus Drop"
+BREAKABLE_ITEMS = { # breaks program by being interpreted as a "Focus Drop"
+    'Festival of the Lost Bonus Drop' : 1077454211,  
+    'Call to Arms Weapon Engram' : 3418714006
 }
 
 CLASS_ITEMS = ["Titan Mark", "Hunter Cloak", "Warlock Bond"]
