@@ -3,3 +3,7 @@
 .venv/
 *.json
 characterjson.txt
+.ibynb_checkpoints/
+*.ipynb
+.ipynb_checkpoints/characterjson-checkpoint.txt
+.ipynb_checkpoints/main-checkpoint.py
