@@ -2,9 +2,11 @@
 .env
 .venv/
 *.json
-characterjson.txt
 /.ipynb_checkpoints
 *.pkl
 *.csv
 item_hashes.csv
 activity_hashes.csv
+activity_hashes.txt
+characterjson.txt
+item_hashes.txt
