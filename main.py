@@ -30,6 +30,7 @@ PROFILE_URL = f"/Platform/Destiny2/{MEMBERSHIP_TYPE}/Profile/{MEMBERSHIP_ID}/"
 MANIFEST_FILENAME = "Manifest.json"
 ACTIVITY_DEFINITION_FILENAME = "DestinyActivityDefinition.json"
 INVENTORY_ITEM_LITE_DEFINITION_FILENAME = "DestinyInventoryItemLiteDefinition.json"
+CHARACTER_DEFINITION_FILENAME = "Character.json"
 
 # BREAKABLE THINGS - THESE ARE ITEMS TO BE USED FOR OMISSION
 BREAKABLE_ITEMS = { # breaks program by being interpreted as a "Focus Drop"
@@ -154,6 +155,8 @@ def get_profile_activities():
         activities = []
         if response.status_code == 200:
             data = response.json()["Response"]
+            with open(CHARACTER_DEFINITION_FILENAME, 'w') as f:
+                json.dump(data, f)
             character_data = data["characterActivities"]["data"]
             next_key = next(iter(character_data))
             character_activities = character_data[next_key]["availableActivities"]
