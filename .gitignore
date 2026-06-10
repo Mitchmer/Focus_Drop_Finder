@@ -3,6 +3,7 @@
 .venv/
 *.json
 /.ipynb_checkpoints
+/Test-stuff
 *.pkl
 *.csv
 item_hashes.csv
