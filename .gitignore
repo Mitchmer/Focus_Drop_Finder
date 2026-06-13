@@ -3,3 +3,6 @@
 .venv/
 *.json
 characterjson.txt
+*.pkl
+/.ipynb_checkpoints
+/Test-stuff
